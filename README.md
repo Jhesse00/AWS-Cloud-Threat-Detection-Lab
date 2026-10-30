@@ -94,6 +94,30 @@ See [`queries/linux_log_collection.md`](queries/linux_log_collection.md).
 
 See [`docs/ioc-reputation-table.md`](docs/ioc-reputation-table.md).
 
+## Analysis Script
+
+[`analyze.py`](analyze.py) recomputes the headline statistics directly from the
+raw CSV data in `data/`, so the published figures can be verified or the
+analysis re-run on a fresh capture. It uses only the Python standard library.
+
+```bash
+# Print the summary table
+python analyze.py
+
+# Emit the stats as JSON
+python analyze.py --json
+
+# Show the ten most-guessed usernames
+python analyze.py --top-usernames 10
+```
+
+Run the tests with:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Key Takeaway
 
 Cloud exposure is instant, and the public internet is hostile. Management ports like SSH should not be left open to the world. Security Groups should be audited, SSH should be restricted, and safer access methods like AWS Systems Manager Session Manager should be considered.
