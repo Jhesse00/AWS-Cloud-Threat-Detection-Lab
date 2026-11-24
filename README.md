@@ -1,131 +1,116 @@
 # AWS Cloud Threat Detection Lab
 
-## Overview
+[![tests](https://github.com/Jhesse00/AWS-Cloud-Threat-Detection-Lab/actions/workflows/tests.yml/badge.svg)](https://github.com/Jhesse00/AWS-Cloud-Threat-Detection-Lab/actions/workflows/tests.yml)
 
-I built an AWS Cloud Threat Detection Lab using an isolated Linux EC2 instance as a controlled SSH honeypot. The goal was to observe real-world automated scanning and failed SSH login activity, forward system telemetry into CloudWatch, extract IOCs, enrich the source IPs, and document the investigation like a SOC workflow.
+An isolated Linux EC2 instance was exposed on SSH/22 and its authentication logs were sent to CloudWatch Logs. The exported failed-login data was counted, enriched with IP reputation and geolocation, and visualized.
 
-## Final Results
+![Global SSH attack map](visualizations/global-ssh-attack-map-cropped.png)
+
+## Results
 
 | Metric | Result |
 |---|---:|
-| Total failed SSH login events | 1,278 |
-| Unique attacker/source IPs | 44 |
-| Top attacker IP | `77.104.92.143` |
-| Top IP activity | 786 failed SSH login events |
-| Username attempts analyzed | 541 |
-| Unique usernames guessed | 58 |
-| Top IP/username pair | `77.104.92.143 → ubuntu (87 attempts)` |
+| Failed SSH logins | 1,278 |
+| Unique source IPs | 44 |
+| Unique usernames attempted | 58 |
+| Busiest source IP | `77.104.92.143`: 786 attempts (61.5%) |
+| Top IP/username pairs | `77.104.92.143` with `admin`, `debian`, `ubuntu`, and `user`, 87 attempts each |
 
-## Global Attack Map
-
-![Global SSH Attack Map](visualizations/global-ssh-attack-map.png)
-
-**Caption:** Attack map showing failed SSH login activity against an AWS EC2 honeypot. Source locations are based on IP geolocation and represent infrastructure location, not confirmed physical actor attribution.
-
-## What I Built
-
-- Deployed an isolated Linux EC2 instance in AWS.
-- Temporarily exposed SSH on port 22 to the public internet.
-- Forwarded system telemetry into CloudWatch.
-- Parsed failed SSH login events from Linux authentication logs.
-- Extracted source IPs, attempted usernames, and event counts.
-- Enriched source IPs using BulkIPLab/VirusTotal-style reputation data.
-- Created visualizations, IOC tables, CloudWatch queries, and a final report.
-
-## Architecture
+`analyze.py` recomputes these figures from the CSV files in `data/`. Sample output:
 
 ```text
-Internet scanners
-      ↓
-AWS Security Group allowing SSH/22
-      ↓
-Linux EC2 honeypot
-      ↓
-Linux authentication logs
-      ↓
-CloudWatch Logs
-      ↓
-Analysis, IOC extraction, enrichment, and visualization
+SSH Honeypot Analysis
+==============================
+Total failed SSH events : 1,278
+Unique source IPs       : 44
+Top attacker IP         : 77.104.92.143 (786 attempts, 61.5% of all events)
+Username attempts       : 541
+Unique usernames guessed: 58
+Top IP/username pair    : 77.104.92.143 → admin (87 attempts)
 ```
 
-## Tools and Technologies
+The script breaks the four-way tie for the top pair alphabetically, so it reports `admin`.
 
-AWS EC2, Security Groups, CloudWatch Logs, Linux, journalctl, Python, pandas, matplotlib, Kepler.gl, BulkIPLab, and VirusTotal.
+Geolocation shows where IP infrastructure is registered or located. It does not identify the person behind the traffic.
 
-## Lab Findings
+## How it works
 
-- **1,278** total failed SSH login events from **44** unique attacker/source IPs.
-- Top attacker IP: **77.104.92.143**, geolocated to Iran, with **786** failed SSH login attempts.
-- **58** unique usernames were guessed.
-- Attackers heavily targeted default cloud/Linux usernames such as `ubuntu`.
-- Source IPs were enriched with country, ISP/provider, IP reputation, AbuseIPDB, and last-checked context.
-
-## Visualizations
-
-### Top SSH Source IPs
-
-![Top SSH Source IPs](visualizations/top_ssh_source_ips.png)
-
-### Top IP / Username Pairs
-
-![Top IP Username Pairs](visualizations/top_ip_username_pairs.png)
-
-### Top Attempted Usernames
-
-![Top Attempted Usernames](visualizations/top_attempted_usernames.png)
-
-### SSH Events by Country
-
-![SSH Events by Country](visualizations/ssh_events_by_country.png)
-
-### SSH Events by ISP / Provider
-
-![SSH Events by ISP](visualizations/ssh_events_by_isp.png)
-
-## CloudWatch Logs Insights Queries
-
-See [`queries/cloudwatch_logs_insights.md`](queries/cloudwatch_logs_insights.md).
-
-## Linux Log Collection Commands
-
-See [`queries/linux_log_collection.md`](queries/linux_log_collection.md).
-
-## IOC and Reputation Table
-
-See [`docs/ioc-reputation-table.md`](docs/ioc-reputation-table.md).
-
-## Analysis Script
-
-[`analyze.py`](analyze.py) recomputes the headline statistics directly from the
-raw CSV data in `data/`, so the published figures can be verified or the
-analysis re-run on a fresh capture. It uses only the Python standard library.
-
-```bash
-# Print the summary table
-python analyze.py
-
-# Emit the stats as JSON
-python analyze.py --json
-
-# Show the ten most-guessed usernames
-python analyze.py --top-usernames 10
+```mermaid
+flowchart LR
+  A[Internet scanners] -->|SSH/22| B[Security Group]
+  B --> C[Linux EC2 instance]
+  C -->|auth logs| D[CloudWatch Logs]
+  D -->|Logs Insights export| E[CSV files in data/]
+  E --> F[analyze.py statistics]
+  E --> G[IP reputation and geolocation enrichment]
+  E --> H[Charts and attack map]
 ```
 
-Run the tests with:
+- Log collection commands: [`queries/linux_log_collection.md`](queries/linux_log_collection.md)
+- CloudWatch Logs Insights queries: [`queries/cloudwatch_logs_insights.md`](queries/cloudwatch_logs_insights.md)
+- IOC and reputation table: [`docs/ioc-reputation-table.md`](docs/ioc-reputation-table.md)
+- Full write-up: [`reports/final-report.md`](reports/final-report.md)
+
+`analyze.py` uses only the Python standard library. The charts in `visualizations/` are pre-rendered matplotlib images, and the attack map was made with Kepler.gl. Reputation data comes from BulkIPLab and VirusTotal.
+
+## Setup
+
+CI uses Python 3.12. `analyze.py` has no dependencies; the tests need pytest:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
 ```
 
-## Key Takeaway
+## Usage
 
-Cloud exposure is instant, and the public internet is hostile. Management ports like SSH should not be left open to the world. Security Groups should be audited, SSH should be restricted, and safer access methods like AWS Systems Manager Session Manager should be considered.
+```bash
+python analyze.py                     # summary table
+python analyze.py --json              # statistics as JSON
+python analyze.py --top-usernames 10  # also list the 10 most-attempted usernames
+python analyze.py --data-dir PATH     # read the CSV files from another directory
+```
 
-## Important Note on Attribution
+## Tests
 
-This project uses IP geolocation and reputation enrichment for security context. Country-level geolocation does **not** prove the physical location or identity of the attacker. It only indicates where the observed IP infrastructure is registered or geolocated.
+```bash
+pytest -q
+```
 
-## Cleanup
+The tests compare computed statistics with `data/project_stats.json` and check the helpers on synthetic and empty data. GitHub Actions runs `pytest -q` and `python analyze.py --json` on pull requests and on pushes to `main`.
 
-See [`docs/cleanup-checklist.md`](docs/cleanup-checklist.md).
+## Visualizations
+
+| | |
+|---|---|
+| ![Top SSH source IPs](visualizations/top_ssh_source_ips.png) | ![Top IP/username pairs](visualizations/top_ip_username_pairs.png) |
+| ![Top attempted usernames](visualizations/top_attempted_usernames.png) | ![SSH events by country](visualizations/ssh_events_by_country.png) |
+| ![SSH events by ISP](visualizations/ssh_events_by_isp.png) | ![Full attack map](visualizations/global-ssh-attack-map.png) |
+
+## Recommendation
+
+Do not expose SSH to the internet. Use AWS Systems Manager Session Manager instead:
+
+1. Remove the `0.0.0.0/0` inbound rule for port 22 from the Security Group.
+2. Attach the AWS managed policy `AmazonSSMManagedInstanceCore` to the instance role.
+3. Confirm the instance appears as managed in Systems Manager Fleet Manager.
+4. Connect with `aws ssm start-session --target <instance-id>`.
+
+If SSH must stay open, allow only known admin IPs and set `PasswordAuthentication no` in `/etc/ssh/sshd_config`.
+
+To tear down the lab, follow [`docs/cleanup-checklist.md`](docs/cleanup-checklist.md).
+
+## Project structure
+
+```text
+analyze.py         Statistics from data/*.csv
+data/              Exported and enriched CSV data, recorded stats
+queries/           Log collection commands and Logs Insights queries
+docs/              IOC table, cleanup checklist
+reports/           Final report
+visualizations/    Charts and attack map
+tests/             pytest tests for analyze.py
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
