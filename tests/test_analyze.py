@@ -28,6 +28,7 @@ def test_numeric_stats_match_recorded_file():
         "unique_ips",
         "top_ip",
         "top_attempts",
+        "top_share_percent",
         "username_attempts",
         "unique_usernames",
     ):
@@ -74,3 +75,31 @@ def test_compute_stats_on_synthetic_data(tmp_path):
     assert stats["username_attempts"] == 40
     assert stats["unique_usernames"] == 2  # root, admin
     assert stats["top_pair_text"] == "10.0.0.1 \u2192 root (20 attempts)"
+
+
+
+def test_top_share_percent_matches_resume_figure():
+    stats = analyze.compute_stats()
+    assert stats["top_share_percent"] == 61.5
+
+
+def test_top_share_percent_on_synthetic_data(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "attacker_ips.csv").write_text(
+        "src_ip,attempts\n10.0.0.1,30\n10.0.0.2,10\n", encoding="utf-8"
+    )
+    (data_dir / "ssh_usernames_by_ip.csv").write_text(
+        "src_ip,username,attempts\n10.0.0.1,root,30\n", encoding="utf-8"
+    )
+    assert analyze.compute_stats(data_dir)["top_share_percent"] == 75.0
+
+
+def test_top_share_percent_empty_data(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "attacker_ips.csv").write_text("src_ip,attempts\n", encoding="utf-8")
+    (data_dir / "ssh_usernames_by_ip.csv").write_text(
+        "src_ip,username,attempts\n", encoding="utf-8"
+    )
+    assert analyze.compute_stats(data_dir)["top_share_percent"] == 0.0

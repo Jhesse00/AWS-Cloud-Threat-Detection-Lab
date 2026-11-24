@@ -47,6 +47,7 @@ def compute_stats(data_dir=DATA_DIR):
     total_events = sum(attempts for _, attempts in attacker_ips)
     unique_ips = len(attacker_ips)
     top_ip, top_attempts = attacker_ips[0] if attacker_ips else ("", 0)
+    top_share_percent = round(100 * top_attempts / total_events, 1) if total_events else 0.0
 
     username_attempts = sum(attempts for _, _, attempts in username_rows)
     unique_usernames = len({username for _, username, _ in username_rows})
@@ -65,6 +66,7 @@ def compute_stats(data_dir=DATA_DIR):
         "unique_ips": unique_ips,
         "top_ip": top_ip,
         "top_attempts": top_attempts,
+        "top_share_percent": top_share_percent,
         "username_attempts": username_attempts,
         "unique_usernames": unique_usernames,
         "top_pair_text": top_pair_text,
@@ -86,8 +88,8 @@ def format_summary(stats):
         "=" * 30,
         f"Total failed SSH events : {stats['total_events']:,}",
         f"Unique source IPs       : {stats['unique_ips']}",
-        f"Top attacker IP         : {stats['top_ip']} ({stats['top_attempts']} attempts)",
-        f"Username attempts        : {stats['username_attempts']}",
+        f"Top attacker IP         : {stats['top_ip']} ({stats['top_attempts']} attempts, {stats['top_share_percent']}% of all events)",
+        f"Username attempts       : {stats['username_attempts']}",
         f"Unique usernames guessed: {stats['unique_usernames']}",
         f"Top IP/username pair    : {stats['top_pair_text']}",
     ]
